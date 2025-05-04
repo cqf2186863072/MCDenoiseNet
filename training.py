@@ -27,11 +27,11 @@ SCENES = {
     'sponza': 'sponza'
 }
 
-NUM_EPOCHS = 50
+NUM_EPOCHS = 2500
 VAL_RATIO = 0.2
 BATCH_SIZE = 1
 ACCUMULATION_STEPS = 8
-ORIGIN_LEARNING_RATE = 1e-3
+ORIGIN_LEARNING_RATE = 5e-4
 MIN_LEARNING_RATE = 5e-6
 
 # feature_names = [SHADING_NORMAL, ALBEDO]
@@ -78,7 +78,7 @@ def load_checkpoint(load_path: Path, device: torch.device, model: torch.nn.Modul
     return start_epoch, best_val_loss
 
 
-def train(base_model_path: Path=None, device: str='cuda', reset_lr: bool=False, fix_lr: bool=False):
+def train(base_model_path: Path=None, device: str='cuda', reset_lr: bool=False, scheduler_type: str='cos'):
     device = torch.device(device)
 
     feature_num = len(feature_names)
@@ -102,19 +102,21 @@ def train(base_model_path: Path=None, device: str='cuda', reset_lr: bool=False, 
         print(f"Starts with lr: {current_lr}")
 
     criterion = RelMSELoss()
-    # scheduler = optim.lr_scheduler.CosineAnnealingLR(
-    #     optimizer,
-    #     T_max=100,
-    #     eta_min=MIN_LEARNING_RATE
-    # )
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode='min',
-        factor=0.8,
-        patience=3,
-        min_lr=MIN_LEARNING_RATE
-    )
+    if scheduler_type == 'cos':
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=50,
+            eta_min=MIN_LEARNING_RATE
+        )
+    else:
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode='min',
+            factor=0.8,
+            patience=3,
+            min_lr=MIN_LEARNING_RATE
+        )
 
     train_dataset, val_dataset = load_all_scene_data()
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -171,9 +173,10 @@ def train(base_model_path: Path=None, device: str='cuda', reset_lr: bool=False, 
             print(f"Saved best model at epoch {epoch} with val_loss {val_loss:.4f}")
 
         # 调整学习率
-        if not fix_lr:
+        if scheduler_type == 'cos':
+            scheduler.step()
+        else:
             scheduler.step(val_loss)
-            # scheduler.step()
 
         # 保存模型
         print(f"Epoch: {epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
@@ -187,9 +190,10 @@ if __name__ == "__main__":
     if not torch.cuda.is_available():
         print('cuda is not available!')
 
-    model_path = Path('models/Epoch149.pth')
+    model_path = Path('models/Epoch1999.pth')
     train(
-        base_model_path=None,
+        base_model_path=model_path,
         device='cuda',
-        reset_lr=True,
-        fix_lr=False)
+        reset_lr=False,
+        scheduler_type='cos'
+    )

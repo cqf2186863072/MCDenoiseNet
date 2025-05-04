@@ -1,4 +1,5 @@
 import torch
+from torch.profiler import profile
 import time
 import numpy as np
 from pathlib import Path
@@ -12,9 +13,10 @@ from loss_functions import *
 
 if __name__ == '__main__':
     samples_path = "../dataset/classroom/inputs"
-    model_path = Path('models/best_model.pth')
-
+    # model_path = Path('models/best_model.pth')
+    model_path = Path('models/Epoch2349.pth')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
     model = MCDenoiseNet(3, 9).to(device)
     loss_fuc = RelMSELoss()
 
@@ -41,16 +43,13 @@ if __name__ == '__main__':
     features = features.to(device).unsqueeze(0)
     target = target.to(device).unsqueeze(0)
 
-    # 计时
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-    torch.cuda.synchronize()
-    start_event.record()
     with torch.no_grad():
-        feature_map, output = model(input, features)
-    end_event.record()
-    torch.cuda.synchronize()
-    elapsed_time = start_event.elapsed_time(end_event)  # 以毫秒为单位
+        _, _ = model(input, features)
+
+        with profile(with_stack=True) as prof:
+            feature_map, output = model(input, features)
+
+    print(prof.key_averages(group_by_stack_n=5).table(sort_by='self_cpu_time_total', row_limit=50))
 
     loss = loss_fuc(output, target)
 
@@ -58,7 +57,8 @@ if __name__ == '__main__':
     output = output.squeeze(0)
 
     print(f"Loss: {loss.item():.6f}")
-    print(f"Time: {elapsed_time / 1000:.6f} seconds")
+
+
 
     save_exr(feature_map, "./feature_map.exr")
     save_exr(output, "./model_output.exr")
