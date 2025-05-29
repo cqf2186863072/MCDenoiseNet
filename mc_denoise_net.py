@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.profiler import record_function, profile
-from pytorch_msssim import ssim
 import math
 
 from sympy import false
@@ -100,8 +99,7 @@ class Down(nn.Module):
         )
 
     def forward(self, x):
-        with record_function("[self]down"):
-            x = self.down(x)
+        x = self.down(x)
         return x
 
 
@@ -271,13 +269,19 @@ class MCDenoiseNet(nn.Module):
         self.decoder = Decoder(BASE_CHANNELS * 8)
 
     def forward(self, image, features):
-        with record_function("[self]feature fusion"):
+        # with record_function("[self]feature fusion"):
+        #     fused_features = self.feature_fusion(features)
+        # with record_function("[self]feature encoder"):
+        #     features_skips = self.features_encoder(fused_features)
+        # with record_function("[self]image encoder"):
+        #     image_skips, latent = self.image_encoder(image)
+        # with record_function("[self]decoder"):
+        #     x = self.decoder(image_skips, features_skips, latent)
+
+        with record_function("[self]all"):
             fused_features = self.feature_fusion(features)
-        with record_function("[self]feature encoder"):
             features_skips = self.features_encoder(fused_features)
-        with record_function("[self]image encoder"):
             image_skips, latent = self.image_encoder(image)
-        with record_function("[self]decoder"):
             x = self.decoder(image_skips, features_skips, latent)
 
         return fused_features, x
@@ -309,14 +313,9 @@ if __name__ == '__main__':
     image = torch.randn((1, 3, 1280, 720), dtype=torch.float).cuda()
     features = torch.randn((1, 9, 1280, 720), dtype=torch.float).cuda()
 
-
-    model(image, features)
-
+    for _ in range(5):
+        model(image, features)
     with profile(with_stack=True) as prof:
         _, output = model(image, features)
 
     print(prof.key_averages().table(sort_by='self_cpu_time_total', row_limit=20))
-
-    print("Input image shape:", image.shape)
-    print("Input feature shape:", features.shape)
-    print("Output image shape:", output.shape)

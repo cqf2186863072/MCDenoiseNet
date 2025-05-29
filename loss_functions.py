@@ -22,6 +22,18 @@ class MSELossWithSSIM(nn.Module):
         return self.alpha * mse_loss + (1 - self.alpha) * ssim_loss
 
 
+class SSIM(nn.Module):
+    def __init__(self, alpha=0.9): # alpha越大越偏向MSE
+        super(SSIM, self).__init__()
+
+    def forward(self, pred, target):
+        normalized_pred = apply_aces_with_gamma(pred)
+        normalized_target = apply_aces_with_gamma(target)
+
+        ssim_loss = 1 - ssim(normalized_pred, normalized_target, data_range=1.0, size_average=True)
+
+        return ssim_loss
+
 class RelMSELoss(nn.Module):
     def __init__(self, epsilon=1e-3, reduction='mean'):
         super(RelMSELoss, self).__init__()
